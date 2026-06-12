@@ -1,32 +1,66 @@
 import { useState } from 'react';
-import { Key, Globe, Check, AlertCircle } from 'lucide-react';
+import { Key, Globe, Check, AlertCircle, Plus, X } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAIStore } from '@/stores/aiStore';
+
+export interface CustomProvider {
+  id: string;
+  name: string;
+  baseUrl: string;
+  model: string;
+}
 
 export default function Settings() {
   const { config, setConfig } = useAIStore();
   const [apiKey, setApiKey] = useState(config.apiKey);
   const [baseUrl, setBaseUrl] = useState(config.baseUrl || 'https://api.deepseek.com');
+  const [model, setModel] = useState(config.model || 'deepseek-chat');
   const [saved, setSaved] = useState(false);
+  const [customProviders, setCustomProviders] = useState<CustomProvider[]>([]);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [newProvider, setNewProvider] = useState({ name: '', baseUrl: '', model: '' });
+
+  const providers = [
+    { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' },
+    { id: 'gemini', name: 'Gemini', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-pro' },
+    { id: 'xiaomi', name: '小米MIMO', baseUrl: 'https://api.mimo.mi.com', model: 'mimo-7b' },
+    { id: 'deepseek-r1', name: 'DeepSeek R1', baseUrl: 'https://api.deepseek.com', model: 'deepseek-r1' },
+    ...customProviders.map(p => ({ ...p, id: `custom-${p.id}` })),
+  ];
 
   const handleSave = () => {
     setConfig({
-      provider: 'deepseek',
+      provider: config.provider,
       apiKey,
       baseUrl,
+      model,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleProviderChange = (provider: 'deepseek' | 'gemini') => {
-    setConfig({ provider });
-    if (provider === 'deepseek') {
-      setBaseUrl('https://api.deepseek.com');
-    } else if (provider === 'gemini') {
-      setBaseUrl('https://generativelanguage.googleapis.com');
-    }
+  const handleProviderChange = (providerId: string, provider: typeof providers[0]) => {
+    setConfig({ provider: providerId as any });
+    setBaseUrl(provider.baseUrl);
+    setModel(provider.model);
+  };
+
+  const addCustomProvider = () => {
+    if (!newProvider.name.trim() || !newProvider.baseUrl.trim()) return;
+    const provider: CustomProvider = {
+      id: Date.now().toString(),
+      name: newProvider.name,
+      baseUrl: newProvider.baseUrl,
+      model: newProvider.model || 'chat-completion',
+    };
+    setCustomProviders([...customProviders, provider]);
+    setNewProvider({ name: '', baseUrl: '', model: '' });
+    setShowCustomForm(false);
+  };
+
+  const removeCustomProvider = (id: string) => {
+    setCustomProviders(customProviders.filter(p => p.id !== id));
   };
 
   return (
@@ -45,30 +79,79 @@ export default function Settings() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-ink-200 text-sm mb-2">服务商</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-ink-200 text-sm mb-2">选择服务商</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {providers.map(provider => (
+                      <button
+                        key={provider.id}
+                        onClick={() => handleProviderChange(provider.id, provider)}
+                        className={`p-3 rounded-lg text-sm transition-all ${
+                          config.provider === provider.id
+                            ? 'bg-amber-gold/20 text-amber-gold border border-amber-gold/30'
+                            : 'bg-ink-600/50 text-ink-200 hover:bg-ink-600'
+                        }`}
+                      >
+                        {provider.name}
+                      </button>
+                    ))}
                     <button
-                      onClick={() => handleProviderChange('deepseek')}
-                      className={`p-3 rounded-lg text-sm transition-all ${
-                        config.provider === 'deepseek'
-                          ? 'bg-amber-gold/20 text-amber-gold border border-amber-gold/30'
-                          : 'bg-ink-600/50 text-ink-200 hover:bg-ink-600'
-                      }`}
+                      onClick={() => setShowCustomForm(true)}
+                      className="p-3 rounded-lg text-sm bg-ink-600/50 text-ink-300 hover:bg-ink-600 hover:text-ink-200 transition-all flex items-center justify-center gap-1"
                     >
-                      DeepSeek
-                    </button>
-                    <button
-                      onClick={() => handleProviderChange('gemini')}
-                      className={`p-3 rounded-lg text-sm transition-all ${
-                        config.provider === 'gemini'
-                          ? 'bg-amber-gold/20 text-amber-gold border border-amber-gold/30'
-                          : 'bg-ink-600/50 text-ink-200 hover:bg-ink-600'
-                      }`}
-                    >
-                      Gemini
+                      <Plus className="w-4 h-4" />
+                      添加自定义
                     </button>
                   </div>
                 </div>
+
+                {showCustomForm && (
+                  <div className="p-4 bg-ink-600/30 rounded-lg space-y-3">
+                    <div>
+                      <label className="block text-ink-200 text-sm mb-1">服务商名称</label>
+                      <input
+                        type="text"
+                        value={newProvider.name}
+                        onChange={(e) => setNewProvider({ ...newProvider, name: e.target.value })}
+                        placeholder="例如：小米MIMO"
+                        className="ink-input text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-ink-200 text-sm mb-1">API Base URL</label>
+                      <input
+                        type="text"
+                        value={newProvider.baseUrl}
+                        onChange={(e) => setNewProvider({ ...newProvider, baseUrl: e.target.value })}
+                        placeholder="https://api.example.com"
+                        className="ink-input text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-ink-200 text-sm mb-1">模型名称（可选）</label>
+                      <input
+                        type="text"
+                        value={newProvider.model}
+                        onChange={(e) => setNewProvider({ ...newProvider, model: e.target.value })}
+                        placeholder="例如：chat-completion"
+                        className="ink-input text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={addCustomProvider}
+                        className="ink-button flex-1 text-sm"
+                      >
+                        添加
+                      </button>
+                      <button
+                        onClick={() => setShowCustomForm(false)}
+                        className="ink-button flex-1 text-sm"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-ink-200 text-sm mb-2">API Key</label>
@@ -88,6 +171,17 @@ export default function Settings() {
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder="https://api.deepseek.com"
+                    className="ink-input"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-ink-200 text-sm mb-2">模型名称</label>
+                  <input
+                    type="text"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="deepseek-chat"
                     className="ink-input"
                   />
                 </div>

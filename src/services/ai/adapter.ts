@@ -22,20 +22,19 @@ export interface AIServiceAdapter {
 }
 
 export async function createAIService(config: AIConfig): Promise<AIServiceAdapter> {
-  if (config.provider === 'deepseek') {
-    return createDeepSeekService(config);
-  } else if (config.provider === 'gemini') {
+  if (config.provider === 'gemini') {
     return createGeminiService(config);
   }
-  throw new Error(`Unsupported AI provider: ${config.provider}`);
+  return createOpenAICompatibleService(config);
 }
 
-async function createDeepSeekService(config: AIConfig): Promise<AIServiceAdapter> {
+async function createOpenAICompatibleService(config: AIConfig): Promise<AIServiceAdapter> {
   const baseURL = config.baseUrl || 'https://api.deepseek.com';
+  const model = config.model || 'deepseek-chat';
 
   async function generate(prompt: string, options?: GenOptions): Promise<string> {
     if (!config.apiKey) {
-      throw new Error('DeepSeek API key not configured');
+      throw new Error('API key not configured');
     }
 
     const response = await fetch(`${baseURL}/chat/completions`, {
@@ -45,7 +44,7 @@ async function createDeepSeekService(config: AIConfig): Promise<AIServiceAdapter
         'Authorization': `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model,
         messages: [
           { role: 'user', content: prompt }
         ],
@@ -56,7 +55,7 @@ async function createDeepSeekService(config: AIConfig): Promise<AIServiceAdapter
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`DeepSeek API error: ${response.status} - ${error}`);
+      throw new Error(`API error: ${response.status} - ${error}`);
     }
 
     const data = await response.json();
@@ -64,7 +63,7 @@ async function createDeepSeekService(config: AIConfig): Promise<AIServiceAdapter
   }
 
   async function continueWrite(context: WriteContext): Promise<string> {
-    const { mode, projectTitle, worldSetting, characters, currentChapter, previousChapter } = context;
+    const { mode, projectTitle, worldSetting, characters, currentChapter } = context;
 
     let systemPrompt = `你是小说《${projectTitle}》的AI创作引擎。`;
     systemPrompt += `\n\n【世界观】\n时代:${worldSetting.era}\n地点:${worldSetting.location}\n社会规则:${worldSetting.societyRules}`;
@@ -74,7 +73,7 @@ async function createDeepSeekService(config: AIConfig): Promise<AIServiceAdapter
     }
 
     const charIntro = characters.map(c =>
-      `${c.name}(${c.role}): ${c.personality.map(p => p.tag).join(',') || '性格待定'}`
+      `${c.name}(${c.role === 'protagonist' ? '主角' : c.role === 'supporting' ? '配角' : '龙套'}): ${c.personality.map(p => p.tag).join(',') || '性格待定'}`
     ).join('\n');
     systemPrompt += `\n\n【角色】\n${charIntro}`;
 
@@ -103,7 +102,7 @@ async function createDeepSeekService(config: AIConfig): Promise<AIServiceAdapter
   }
 
   return {
-    name: 'DeepSeek',
+    name: config.provider || 'Custom',
     generate,
     continueWrite,
   };
@@ -139,9 +138,47 @@ async function createGeminiService(config: AIConfig): Promise<AIServiceAdapter> 
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
 
+  async function continueWrite(context: WriteContext): Promise<string> {
+    const { mode, projectTitle, worldSetting, characters, currentChapter } = context;
+
+    let prompt = `你是小说《${projectTitle}》的AI创作引擎。\n\n`;
+    prompt += `【世界观】\n时代:${worldSetting.era}\n地点:${worldSetting.location}\n社会规则:${worldSetting.societyRules}\n\n`;
+
+    if (worldSetting.customRules.length > 0) {
+      prompt += `自定义规则:${worldSetting.customRules.join(',')}\n\n`;
+    }
+
+    const charIntro = characters.map(c =>
+      `${c.name}(${c.role === 'protagonist' ? '主角' : c.role === 'supporting' ? '配角' : '龙套'}): ${c.personality.map(p => p.tag).join(',') || '性格待定'}`
+    ).join('\n');
+    prompt += `【角色】\n${charIntro}\n\n`;
+
+    let taskPrompt = '';
+    switch (mode) {
+      case 'continue':
+        taskPrompt = `续写当前章节"${currentChapter.title}"的下一段内容，保持文风连贯:\n\n${currentChapter.content}`;
+        break;
+      case 'advance':
+        taskPrompt = `根据当前章节结尾，推进剧情到下一章:\n\n${currentChapter.content}`;
+        break;
+      case 'polish':
+        taskPrompt = `润色以下小说内容，提升文笔:\n\n${currentChapter.content}`;
+        break;
+      case 'atmosphere':
+        taskPrompt = `生成一段氛围描写，渲染场景气氛:\n\n${currentChapter.content}`;
+        break;
+    }
+
+    if (context.customPrompt) {
+      taskPrompt += `\n\n【额外要求】${context.customPrompt}`;
+    }
+
+    return generate(prompt + taskPrompt);
+  }
+
   return {
     name: 'Gemini',
     generate,
-    continueWrite: async () => { throw new Error('Gemini continueWrite not implemented'); },
+    continueWrite,
   };
 }

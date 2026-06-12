@@ -69,9 +69,10 @@ export interface Outline {
 }
 
 export interface AIConfig {
-  provider: 'deepseek' | 'gemini';
+  provider: string;
   apiKey: string;
   baseUrl?: string;
+  model?: string;
 }
 
 export type AIGenerateMode = 'continue' | 'advance' | 'polish' | 'atmosphere';

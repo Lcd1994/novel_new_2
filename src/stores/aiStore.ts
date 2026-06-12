@@ -16,6 +16,7 @@ export const useAIStore = create<AIState>()(
         provider: 'deepseek',
         apiKey: '',
         baseUrl: 'https://api.deepseek.com',
+        model: 'deepseek-chat',
       },
       isGenerating: false,
 
