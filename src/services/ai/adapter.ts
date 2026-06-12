@@ -25,8 +25,8 @@ export async function createAIService(config: AIConfig): Promise<AIServiceAdapte
   if (config.provider === 'gemini') {
     return createGeminiService(config);
   }
-  if (config.provider === 'xiaomi-token') {
-    return createXiaomiTokenService(config);
+  if (config.provider === 'xiaomi-mimo' || config.provider === 'xiaomi-token') {
+    return createXiaomiService(config);
   }
   return createOpenAICompatibleService(config);
 }
@@ -105,72 +105,46 @@ async function createOpenAICompatibleService(config: AIConfig): Promise<AIServic
   }
 
   return {
-    name: config.provider === 'xiaomi-mimo' ? '小米MIMO' : (config.provider || 'Custom'),
+    name: config.provider || 'Custom',
     generate,
     continueWrite,
   };
 }
 
-async function createXiaomiTokenService(config: AIConfig): Promise<AIServiceAdapter> {
-  const baseURL = config.baseUrl || 'https://api.mimo.mi.com/v1';
-  const model = config.model || 'mimo-8b-chat';
-  let accessToken: string | null = null;
-  let tokenExpireTime = 0;
-
-  async function getAccessToken(): Promise<string> {
-    if (accessToken && Date.now() < tokenExpireTime) {
-      return accessToken;
-    }
-
-    const response = await fetch(`${baseURL}/tokens`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        key: config.apiKey,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`获取Token失败: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    accessToken = data.access_token;
-    tokenExpireTime = Date.now() + (data.expires_in || 3600) * 1000 - 60000;
-
-    return accessToken;
-  }
+async function createXiaomiService(config: AIConfig): Promise<AIServiceAdapter> {
+  const baseURL = config.baseUrl || 'https://api.xiaomimimo.com/v1';
+  const model = config.model || 'mimo-v2.5-pro';
 
   async function generate(prompt: string, options?: GenOptions): Promise<string> {
     if (!config.apiKey) {
       throw new Error('API key not configured');
     }
 
-    const token = await getAccessToken();
-
     const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        'api-key': config.apiKey,
       },
       body: JSON.stringify({
         model,
         messages: [
+          {
+            role: 'system',
+            content: '你是MiMo（中文名称也是MiMo），是小米公司研发的AI智能助手。'
+          },
           { role: 'user', content: prompt }
         ],
         temperature: options?.temperature ?? 0.7,
-        max_tokens: options?.maxTokens ?? 2000,
+        max_completion_tokens: options?.maxTokens ?? 2000,
+        top_p: 0.95,
+        stream: false,
       }),
     });
 
     if (!response.ok) {
-      accessToken = null;
       const error = await response.text();
-      throw new Error(`API error: ${response.status} - ${error}`);
+      throw new Error(`MiMo API error: ${response.status} - ${error}`);
     }
 
     const data = await response.json();
@@ -180,8 +154,9 @@ async function createXiaomiTokenService(config: AIConfig): Promise<AIServiceAdap
   async function continueWrite(context: WriteContext): Promise<string> {
     const { mode, projectTitle, worldSetting, characters, currentChapter } = context;
 
-    let systemPrompt = `你是小说《${projectTitle}》的AI创作引擎。`;
-    systemPrompt += `\n\n【世界观】\n时代:${worldSetting.era}\n地点:${worldSetting.location}\n社会规则:${worldSetting.societyRules}`;
+    let systemPrompt = `你是MiMo（中文名称也是MiMo），是小米公司研发的AI智能助手。\n\n`;
+    systemPrompt += `你是小说《${projectTitle}》的AI创作引擎。\n\n`;
+    systemPrompt += `【世界观】\n时代:${worldSetting.era}\n地点:${worldSetting.location}\n社会规则:${worldSetting.societyRules}`;
 
     if (worldSetting.customRules.length > 0) {
       systemPrompt += `\n自定义规则:${worldSetting.customRules.join(',')}`;
@@ -217,7 +192,7 @@ async function createXiaomiTokenService(config: AIConfig): Promise<AIServiceAdap
   }
 
   return {
-    name: '小米Token Plan',
+    name: config.provider === 'xiaomi-mimo' ? '小米MIMO' : '小米Token Plan',
     generate,
     continueWrite,
   };
