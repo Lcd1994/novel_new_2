@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageCircle, Sparkles, Send, Loader2, Wand2, BookOpen, Users } from 'lucide-react';
+import { MessageCircle, Sparkles, Send, Loader2, Wand2, BookOpen, Users, ChevronDown } from 'lucide-react';
 import { useAIStore } from '@/stores/aiStore';
 import { useProjectStore } from '@/stores/projectStore';
 import { createAIService } from '@/services/ai/adapter';
@@ -11,8 +11,16 @@ interface Message {
   timestamp: number;
 }
 
+const providers = [
+  { id: 'deepseek', name: 'DeepSeek', model: 'deepseek-chat' },
+  { id: 'gemini', name: 'Gemini', model: 'gemini-pro' },
+  { id: 'xiaomi-mimo', name: '小米MIMO', model: 'mimo-v2.5-pro' },
+  { id: 'xiaomi-token', name: '小米Token Plan', model: 'mimo-v2.5-pro' },
+  { id: 'deepseek-r1', name: 'DeepSeek R1', model: 'deepseek-r1' },
+];
+
 export default function AIDiscussionRoom() {
-  const { config } = useAIStore();
+  const { config, setConfig } = useAIStore();
   const { createProject, addOutline, addCharacter, updateWorldSetting } = useProjectStore();
   
   const [messages, setMessages] = useState<Message[]>([
@@ -25,6 +33,25 @@ export default function AIDiscussionRoom() {
   ]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+
+  const currentProvider = providers.find(p => p.id === config.provider);
+
+  const handleProviderChange = (providerId: string) => {
+    const provider = providers.find(p => p.id === providerId);
+    if (provider) {
+      setConfig({
+        provider: providerId as any,
+        baseUrl: providerId === 'deepseek' ? 'https://api.deepseek.com' :
+                 providerId === 'deepseek-r1' ? 'https://api.deepseek.com' :
+                 providerId === 'gemini' ? 'https://generativelanguage.googleapis.com' :
+                 providerId === 'xiaomi-mimo' ? 'https://api.xiaomimimo.com/v1' :
+                 'https://token-plan-cn.xiaomimimo.com/v1',
+        model: provider.model,
+      });
+      setShowProviderDropdown(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!input.trim() || !config.apiKey) {
@@ -96,11 +123,45 @@ export default function AIDiscussionRoom() {
   return (
     <div className="h-full flex flex-col">
       <header className="p-4 border-b border-ink-500/30">
-        <h3 className="font-serif text-lg text-amber-gold flex items-center gap-2">
-          <MessageCircle className="w-5 h-5" />
-          AI讨论室
-        </h3>
-        <p className="text-ink-300 text-sm mt-1">与AI讨论你的故事创意</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-serif text-lg text-amber-gold flex items-center gap-2">
+              <MessageCircle className="w-5 h-5" />
+              AI讨论室
+            </h3>
+            <p className="text-ink-300 text-sm mt-1">与AI讨论你的故事创意</p>
+          </div>
+          
+          <div className="relative">
+            <button
+              onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-ink-600/50 rounded-lg text-sm hover:bg-ink-600 transition-colors"
+            >
+              <Sparkles className="w-4 h-4 text-amber-gold" />
+              <span>{currentProvider?.name || '选择AI'}</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {showProviderDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-ink-700 border border-ink-500/50 rounded-lg shadow-xl z-10 min-w-[160px]">
+                {providers.map(provider => (
+                  <button
+                    key={provider.id}
+                    onClick={() => handleProviderChange(provider.id)}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-ink-600 flex justify-between items-center ${
+                      config.provider === provider.id ? 'text-amber-gold bg-ink-600/50' : 'text-ink-200'
+                    }`}
+                  >
+                    <span>{provider.name}</span>
+                    {config.provider === provider.id && (
+                      <span className="w-2 h-2 bg-amber-gold rounded-full" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -132,7 +193,7 @@ export default function AIDiscussionRoom() {
             <div className="bg-ink-600/80 text-ink-100 p-4 rounded-xl rounded-tl-sm">
               <div className="flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-amber-gold" />
-                <span className="text-sm">AI正在思考...</span>
+                <span className="text-sm">{currentProvider?.name}正在思考...</span>
               </div>
             </div>
           </div>

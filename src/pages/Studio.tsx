@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { Send, Loader2, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
+import { Send, Loader2, ChevronRight, Sparkles, BookOpen, ChevronDown } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import ThreeColumnLayout from '@/components/layout/ThreeColumnLayout';
 import { useProjectStore } from '@/stores/projectStore';
@@ -9,17 +9,44 @@ import { useUIStore } from '@/stores/uiStore';
 import { createAIService } from '@/services/ai/adapter';
 import type { AIGenerateMode, Character, WorldSetting } from '@/types';
 
+const providers = [
+  { id: 'deepseek', name: 'DeepSeek', model: 'deepseek-chat' },
+  { id: 'gemini', name: 'Gemini', model: 'gemini-pro' },
+  { id: 'xiaomi-mimo', name: '小米MIMO', model: 'mimo-v2.5-pro' },
+  { id: 'xiaomi-token', name: '小米Token Plan', model: 'mimo-v2.5-pro' },
+  { id: 'deepseek-r1', name: 'DeepSeek R1', model: 'deepseek-r1' },
+];
+
 export default function Studio() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { currentProjectId, chapters, characters, worldSettings, addChapter, updateChapter } = useProjectStore();
-  const { config } = useAIStore();
+  const { config, setConfig } = useAIStore();
   const { rightPanelOpen, toggleRightPanel, currentView, setCurrentView } = useUIStore();
 
   const [customPrompt, setCustomPrompt] = useState('');
   const [generatingMode, setGeneratingMode] = useState<AIGenerateMode>('continue');
   const [generating, setGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState('');
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+
+  const currentProvider = providers.find(p => p.id === config.provider);
+
+  const handleProviderChange = (providerId: string) => {
+    const provider = providers.find(p => p.id === providerId);
+    if (provider) {
+      setConfig({
+        provider: providerId as any,
+        baseUrl: providerId === 'deepseek' ? 'https://api.deepseek.com' :
+                 providerId === 'deepseek-r1' ? 'https://api.deepseek.com' :
+                 providerId === 'gemini' ? 'https://generativelanguage.googleapis.com' :
+                 providerId === 'xiaomi-mimo' ? 'https://api.xiaomimimo.com/v1' :
+                 'https://token-plan-cn.xiaomimimo.com/v1',
+        model: provider.model,
+      });
+      setShowProviderDropdown(false);
+    }
+  };
 
   const projectChapters = chapters.filter(c => c.projectId === projectId).sort((a, b) => a.number - b.number);
   const projectCharacters = characters.filter(c => c.projectId === projectId);
@@ -191,6 +218,38 @@ export default function Studio() {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
+          <label className="block text-ink-200 text-sm mb-2">选择AI服务商</label>
+          <div className="relative">
+            <button
+              onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-ink-600/50 rounded-lg text-sm hover:bg-ink-600 transition-colors"
+            >
+              <span>{currentProvider?.name || '选择AI'}</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {showProviderDropdown && (
+              <div className="absolute right-0 left-0 top-full mt-1 bg-ink-700 border border-ink-500/50 rounded-lg shadow-xl z-10">
+                {providers.map(provider => (
+                  <button
+                    key={provider.id}
+                    onClick={() => handleProviderChange(provider.id)}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-ink-600 flex justify-between items-center ${
+                      config.provider === provider.id ? 'text-amber-gold bg-ink-600/50' : 'text-ink-200'
+                    }`}
+                  >
+                    <span>{provider.name}</span>
+                    {config.provider === provider.id && (
+                      <span className="w-2 h-2 bg-amber-gold rounded-full" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
           <label className="block text-ink-200 text-sm mb-2">创作模式</label>
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -233,7 +292,7 @@ export default function Studio() {
           {generating ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              生成中...
+              {currentProvider?.name}生成中...
             </>
           ) : (
             <>
