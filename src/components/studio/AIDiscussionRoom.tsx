@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { MessageCircle, Sparkles, Send, Loader2, Wand2, BookOpen, Users, ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MessageCircle, Sparkles, Send, Loader2, Wand2, BookOpen, Users, ChevronDown, Trash2 } from 'lucide-react';
 import { useAIStore } from '@/stores/aiStore';
 import { useProjectStore } from '@/stores/projectStore';
 import { createAIService } from '@/services/ai/adapter';
@@ -23,14 +23,17 @@ export default function AIDiscussionRoom() {
   const { config, setConfig } = useAIStore();
   const { createProject, addOutline, addCharacter, updateWorldSetting } = useProjectStore();
   
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: '你好！我是你的AI小说创作助手。告诉我你的想法，我可以帮你：\n\n1. 生成故事创意和概念\n2. 设计故事大纲\n3. 创建角色设定\n4. 构建世界观\n\n你想从哪里开始？',
-      isUser: false,
-      timestamp: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = localStorage.getItem('novelforge-discussion-messages');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: '1',
+        content: '你好！我是你的AI小说创作助手。告诉我你的想法，我可以帮你：\n\n1. 生成故事创意和概念\n2. 设计故事大纲\n3. 创建角色设定\n4. 构建世界观\n\n你想从哪里开始？',
+        isUser: false,
+        timestamp: Date.now(),
+      },
+    ];
+  });
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
@@ -50,6 +53,23 @@ export default function AIDiscussionRoom() {
         model: provider.model,
       });
       setShowProviderDropdown(false);
+    }
+  };
+
+  useEffect(() => {
+    localStorage.setItem('novelforge-discussion-messages', JSON.stringify(messages));
+  }, [messages]);
+
+  const handleClearMessages = () => {
+    if (confirm('确定要清空所有聊天记录吗？')) {
+      setMessages([
+        {
+          id: '1',
+          content: '你好！我是你的AI小说创作助手。告诉我你的想法，我可以帮你：\n\n1. 生成故事创意和概念\n2. 设计故事大纲\n3. 创建角色设定\n4. 构建世界观\n\n你想从哪里开始？',
+          isUser: false,
+          timestamp: Date.now(),
+        },
+      ]);
     }
   };
 
@@ -132,7 +152,7 @@ export default function AIDiscussionRoom() {
             <p className="text-ink-300 text-sm mt-1">与AI讨论你的故事创意</p>
           </div>
           
-          <div className="relative">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setShowProviderDropdown(!showProviderDropdown)}
               className="flex items-center gap-1 px-3 py-1.5 bg-ink-600/50 rounded-lg text-sm hover:bg-ink-600 transition-colors"
@@ -142,11 +162,20 @@ export default function AIDiscussionRoom() {
               <ChevronDown className={`w-4 h-4 transition-transform ${showProviderDropdown ? 'rotate-180' : ''}`} />
             </button>
             
-            {showProviderDropdown && (
-              <div className="absolute right-0 top-full mt-1 bg-ink-700 border border-ink-500/50 rounded-lg shadow-xl z-10 min-w-[160px]">
-                {providers.map(provider => (
-                  <button
-                    key={provider.id}
+            <button
+              onClick={handleClearMessages}
+              className="p-1.5 text-ink-300 hover:text-ink-100 hover:bg-ink-600/50 rounded-lg transition-colors"
+              title="清空聊天记录"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {showProviderDropdown && (
+            <div className="absolute right-0 top-full mt-1 bg-ink-700 border border-ink-500/50 rounded-lg shadow-xl z-10 min-w-[160px]">
+              {providers.map(provider => (
+                <button
+                  key={provider.id}
                     onClick={() => handleProviderChange(provider.id)}
                     className={`w-full px-4 py-2 text-left text-sm hover:bg-ink-600 flex justify-between items-center ${
                       config.provider === provider.id ? 'text-amber-gold bg-ink-600/50' : 'text-ink-200'
@@ -222,10 +251,15 @@ export default function AIDiscussionRoom() {
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSend()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="输入你的想法..."
             className="ink-input flex-1"
-            disabled={!config.apiKey}
+            disabled={isGenerating}
           />
           <button
             onClick={handleSend}
