@@ -1,0 +1,24 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Dashboard from "@/pages/Dashboard";
+import Studio from "@/pages/Studio";
+import CharacterCenter from "@/pages/CharacterCenter";
+import WorldEditor from "@/pages/WorldEditor";
+import OutlineView from "@/pages/OutlineView";
+import Reader from "@/pages/Reader";
+import Settings from "@/pages/Settings";
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/studio/:projectId" element={<Studio />} />
+        <Route path="/characters/:projectId" element={<CharacterCenter />} />
+        <Route path="/world/:projectId" element={<WorldEditor />} />
+        <Route path="/outline/:projectId" element={<OutlineView />} />
+        <Route path="/reader/:projectId/:chapterId" element={<Reader />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </Router>
+  );
+}
