@@ -6,12 +6,14 @@ import WorldEditor from "@/pages/WorldEditor";
 import OutlineView from "@/pages/OutlineView";
 import Reader from "@/pages/Reader";
 import Settings from "@/pages/Settings";
+import Discussion from "@/pages/Discussion";
 
 export default function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/discussion" element={<Discussion />} />
         <Route path="/studio/:projectId" element={<Studio />} />
         <Route path="/characters/:projectId" element={<CharacterCenter />} />
         <Route path="/world/:projectId" element={<WorldEditor />} />

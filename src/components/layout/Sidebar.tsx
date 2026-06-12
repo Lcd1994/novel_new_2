@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, Users, Globe, List, Settings, Plus, ChevronRight } from 'lucide-react';
+import { BookOpen, Users, Globe, List, Settings, Plus, ChevronRight, MessageCircle } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 
 export default function Sidebar() {
@@ -7,6 +7,7 @@ export default function Sidebar() {
   const { currentProjectId, projects } = useProjectStore();
 
   const navItems = [
+    { icon: MessageCircle, label: 'AI讨论室', path: '/discussion' },
     { icon: BookOpen, label: '工作室', path: currentProjectId ? `/studio/${currentProjectId}` : '/', requiresProject: true },
     { icon: Users, label: '角色中心', path: currentProjectId ? `/characters/${currentProjectId}` : '/', requiresProject: true },
     { icon: Globe, label: '世界观', path: currentProjectId ? `/world/${currentProjectId}` : '/', requiresProject: true },
