@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Project, Chapter, Character, WorldSetting, Outline } from '@/types';
+import type { Project, Chapter, Character, WorldSetting, Outline, ExportOptions } from '@/types';
 
 interface ProjectState {
   projects: Project[];
@@ -18,7 +18,8 @@ interface ProjectState {
   addChapter: (projectId: string, title: string) => Chapter;
   updateChapter: (id: string, updates: Partial<Chapter>) => void;
   deleteChapter: (id: string) => void;
-  loadChapterContent: (chapterId: string) => string;
+  getChapterContent: (chapterId: string) => string;
+  updateChapterContent: (chapterId: string, content: string) => void;
 
   addCharacter: (projectId: string, name: string, role: Character['role']) => Character;
   updateCharacter: (id: string, updates: Partial<Character>) => void;
@@ -29,6 +30,9 @@ interface ProjectState {
   addOutline: (projectId: string, title: string, type: Outline['type'], parentId?: string) => Outline;
   updateOutline: (id: string, updates: Partial<Outline>) => void;
   deleteOutline: (id: string) => void;
+
+  exportProject: (projectId: string, options: ExportOptions) => string;
+  getProjectStats: (projectId: string) => { chapterCount: number; totalWords: number; charCount: number };
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -40,6 +44,7 @@ const getPreview = (content: string, maxLength: number = 100): string => {
 };
 
 const countWords = (content: string): number => {
+  if (!content || !content.trim()) return 0;
   const chineseChars = content.match(/[\u4e00-\u9fa5]/g);
   const englishWords = content.match(/[a-zA-Z]+/g);
   return (chineseChars?.length || 0) + (englishWords?.length || 0);
@@ -48,15 +53,28 @@ const countWords = (content: string): number => {
 const STORAGE_KEY_PREFIX = 'novelforge-chapter-content-';
 
 const saveChapterContent = (chapterId: string, content: string) => {
-  localStorage.setItem(STORAGE_KEY_PREFIX + chapterId, content);
+  try {
+    localStorage.setItem(STORAGE_KEY_PREFIX + chapterId, content);
+  } catch (e) {
+    console.warn('保存章节内容失败:', e);
+  }
 };
 
 const loadChapterContent = (chapterId: string): string => {
-  return localStorage.getItem(STORAGE_KEY_PREFIX + chapterId) || '';
+  try {
+    return localStorage.getItem(STORAGE_KEY_PREFIX + chapterId) || '';
+  } catch (e) {
+    console.warn('读取章节内容失败:', e);
+    return '';
+  }
 };
 
 const deleteChapterContent = (chapterId: string) => {
-  localStorage.removeItem(STORAGE_KEY_PREFIX + chapterId);
+  try {
+    localStorage.removeItem(STORAGE_KEY_PREFIX + chapterId);
+  } catch (e) {
+    console.warn('删除章节内容失败:', e);
+  }
 };
 
 export const useProjectStore = create<ProjectState>()(
@@ -94,7 +112,7 @@ export const useProjectStore = create<ProjectState>()(
       deleteProject: (id) => {
         const chaptersToDelete = get().chapters.filter(c => c.projectId === id);
         chaptersToDelete.forEach(chapter => deleteChapterContent(chapter.id));
-        
+
         set(state => ({
           projects: state.projects.filter(p => p.id !== id),
           chapters: state.chapters.filter(c => c.projectId !== id),
@@ -124,28 +142,24 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       updateChapter: (id, updates) => {
-        const state = get();
-        const existingChapter = state.chapters.find(c => c.id === id);
-        
-        let newContent = updates.content;
-        if (newContent !== undefined) {
-          saveChapterContent(id, newContent);
-        } else if (existingChapter && existingChapter.content && !state.chapters.find(c => c.id === id)?.content) {
-          newContent = loadChapterContent(id);
-        }
+        const hasContentUpdate = updates.content !== undefined;
+        const newContent = updates.content;
+        const newPreview = hasContentUpdate ? getPreview(newContent || '') : undefined;
+        const newWordCount = hasContentUpdate ? countWords(newContent || '') : undefined;
 
-        const preview = newContent !== undefined ? getPreview(newContent) : undefined;
-        const wordCount = newContent !== undefined ? countWords(newContent) : undefined;
+        if (hasContentUpdate && newContent !== undefined) {
+          saveChapterContent(id, newContent);
+        }
 
         set(state => ({
           chapters: state.chapters.map(c =>
-            c.id === id ? { 
-              ...c, 
+            c.id === id ? {
+              ...c,
               ...updates,
-              content: newContent !== undefined ? '' : c.content,
-              preview: preview !== undefined ? preview : c.preview,
-              wordCount: wordCount !== undefined ? wordCount : c.wordCount,
-              updatedAt: Date.now() 
+              content: '',
+              preview: newPreview !== undefined ? newPreview : c.preview,
+              wordCount: newWordCount !== undefined ? newWordCount : c.wordCount,
+              updatedAt: Date.now()
             } : c
           ),
         }));
@@ -156,8 +170,20 @@ export const useProjectStore = create<ProjectState>()(
         set(state => ({ chapters: state.chapters.filter(c => c.id !== id) }));
       },
 
-      loadChapterContent: (chapterId): string => {
+      getChapterContent: (chapterId): string => {
         return loadChapterContent(chapterId);
+      },
+
+      updateChapterContent: (chapterId, content) => {
+        saveChapterContent(chapterId, content);
+        const preview = getPreview(content);
+        const wordCount = countWords(content);
+
+        set(state => ({
+          chapters: state.chapters.map(c =>
+            c.id === chapterId ? { ...c, preview, wordCount, content: '', updatedAt: Date.now() } : c
+          ),
+        }));
       },
 
       addCharacter: (projectId, name, role) => {
@@ -234,9 +260,103 @@ export const useProjectStore = create<ProjectState>()(
       deleteOutline: (id) => {
         set(state => ({ outlines: state.outlines.filter(o => o.id !== id) }));
       },
+
+      exportProject: (projectId, options): string => {
+        const state = get();
+        const project = state.projects.find(p => p.id === projectId);
+        if (!project) return '';
+
+        const projectChapters = state.chapters
+          .filter(c => c.projectId === projectId)
+          .sort((a, b) => a.number - b.number);
+
+        let output = '';
+
+        if (options.format === 'md') {
+          output += `# ${project.title}\n\n`;
+          if (project.description) {
+            output += `> ${project.description}\n\n`;
+          }
+          output += `---\n\n`;
+
+          for (const chapter of projectChapters) {
+            const content = loadChapterContent(chapter.id);
+            if (!content.trim()) continue;
+
+            let heading = '';
+            if (options.includeChapterNumbers) {
+              heading += `第 ${chapter.number} 章`;
+            }
+            if (options.includeChapterTitles) {
+              heading += heading ? `：${chapter.title}` : chapter.title;
+            }
+            if (heading) {
+              output += `## ${heading}\n\n`;
+            }
+
+            output += `${content}\n\n`;
+            output += `---\n\n`;
+          }
+        } else {
+          // txt format
+          output += `${project.title}\n`;
+          if (project.description) {
+            output += `${project.description}\n`;
+          }
+          output += `${'='.repeat(40)}\n\n`;
+
+          for (const chapter of projectChapters) {
+            const content = loadChapterContent(chapter.id);
+            if (!content.trim()) continue;
+
+            let heading = '';
+            if (options.includeChapterNumbers) {
+              heading += `第 ${chapter.number} 章`;
+            }
+            if (options.includeChapterTitles) {
+              heading += heading ? `：${chapter.title}` : chapter.title;
+            }
+            if (heading) {
+              output += `${heading}\n`;
+              output += `${'-'.repeat(20)}\n`;
+            }
+
+            output += `${content}\n\n`;
+          }
+        }
+
+        return output.trim();
+      },
+
+      getProjectStats: (projectId) => {
+        const state = get();
+        const projectChapters = state.chapters.filter(c => c.projectId === projectId);
+
+        let totalWords = 0;
+        for (const chapter of projectChapters) {
+          const content = loadChapterContent(chapter.id);
+          totalWords += countWords(content);
+        }
+
+        const charCount = state.characters.filter(c => c.projectId === projectId).length;
+
+        return {
+          chapterCount: projectChapters.length,
+          totalWords,
+          charCount,
+        };
+      },
     }),
     {
       name: 'novelforge-storage',
+      partialize: (state) => ({
+        projects: state.projects,
+        currentProjectId: state.currentProjectId,
+        chapters: state.chapters,
+        characters: state.characters,
+        worldSettings: state.worldSettings,
+        outlines: state.outlines,
+      }),
     }
   )
 );

@@ -7,7 +7,7 @@ import { useProjectStore } from '@/stores/projectStore';
 export default function Reader() {
   const { projectId, chapterId } = useParams<{ projectId: string; chapterId: string }>();
   const navigate = useNavigate();
-  const { chapters, projects, loadChapterContent } = useProjectStore();
+  const { chapters, projects, getChapterContent } = useProjectStore();
 
   const [fontSize, setFontSize] = useState(18);
   const [theme, setTheme] = useState<'dark' | 'sepia'>('dark');
@@ -24,12 +24,9 @@ export default function Reader() {
 
   useEffect(() => {
     if (chapterId) {
-      setLoading(true);
-      const chapterContent = loadChapterContent(chapterId);
-      setContent(chapterContent);
-      setLoading(false);
+      setContent(getChapterContent(chapterId));
     }
-  }, [chapterId, loadChapterContent]);
+  }, [chapterId, getChapterContent]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -99,18 +96,12 @@ export default function Reader() {
               {currentChapter.title}
             </h1>
 
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className={`w-6 h-6 animate-spin ${theme === 'dark' ? 'text-amber-gold' : 'text-amber-600'}`} />
-              </div>
-            ) : (
-              <div
-                className="leading-loose whitespace-pre-wrap"
-                style={{ fontSize: `${fontSize}px`, lineHeight: '1.8' }}
-              >
-                {content || '暂无内容'}
-              </div>
-            )}
+            <div
+              className="leading-loose whitespace-pre-wrap text-ink-100"
+              style={{ fontSize: `${fontSize}px`, lineHeight: '1.8' }}
+            >
+              {content || '暂无内容'}
+            </div>
 
             <div className="mt-16 pt-8 border-t border-ink-500/30 flex items-center justify-between">
               {prevChapter ? (
