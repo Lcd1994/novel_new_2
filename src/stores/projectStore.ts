@@ -18,6 +18,7 @@ interface ProjectState {
   addChapter: (projectId: string, title: string) => Chapter;
   updateChapter: (id: string, updates: Partial<Chapter>) => void;
   deleteChapter: (id: string) => void;
+  loadChapterContent: (chapterId: string) => string;
 
   addCharacter: (projectId: string, name: string, role: Character['role']) => Character;
   updateCharacter: (id: string, updates: Partial<Character>) => void;
@@ -31,6 +32,32 @@ interface ProjectState {
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
+
+const getPreview = (content: string, maxLength: number = 100): string => {
+  const trimmed = content.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return trimmed.substring(0, maxLength) + '...';
+};
+
+const countWords = (content: string): number => {
+  const chineseChars = content.match(/[\u4e00-\u9fa5]/g);
+  const englishWords = content.match(/[a-zA-Z]+/g);
+  return (chineseChars?.length || 0) + (englishWords?.length || 0);
+};
+
+const STORAGE_KEY_PREFIX = 'novelforge-chapter-content-';
+
+const saveChapterContent = (chapterId: string, content: string) => {
+  localStorage.setItem(STORAGE_KEY_PREFIX + chapterId, content);
+};
+
+const loadChapterContent = (chapterId: string): string => {
+  return localStorage.getItem(STORAGE_KEY_PREFIX + chapterId) || '';
+};
+
+const deleteChapterContent = (chapterId: string) => {
+  localStorage.removeItem(STORAGE_KEY_PREFIX + chapterId);
+};
 
 export const useProjectStore = create<ProjectState>()(
   persist(
@@ -65,6 +92,9 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       deleteProject: (id) => {
+        const chaptersToDelete = get().chapters.filter(c => c.projectId === id);
+        chaptersToDelete.forEach(chapter => deleteChapterContent(chapter.id));
+        
         set(state => ({
           projects: state.projects.filter(p => p.id !== id),
           chapters: state.chapters.filter(c => c.projectId !== id),
@@ -83,6 +113,8 @@ export const useProjectStore = create<ProjectState>()(
           number: chapters.length + 1,
           title,
           content: '',
+          preview: '',
+          wordCount: 0,
           status: 'draft',
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -92,15 +124,40 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       updateChapter: (id, updates) => {
+        const state = get();
+        const existingChapter = state.chapters.find(c => c.id === id);
+        
+        let newContent = updates.content;
+        if (newContent !== undefined) {
+          saveChapterContent(id, newContent);
+        } else if (existingChapter && existingChapter.content && !state.chapters.find(c => c.id === id)?.content) {
+          newContent = loadChapterContent(id);
+        }
+
+        const preview = newContent !== undefined ? getPreview(newContent) : undefined;
+        const wordCount = newContent !== undefined ? countWords(newContent) : undefined;
+
         set(state => ({
           chapters: state.chapters.map(c =>
-            c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c
+            c.id === id ? { 
+              ...c, 
+              ...updates,
+              content: newContent !== undefined ? '' : c.content,
+              preview: preview !== undefined ? preview : c.preview,
+              wordCount: wordCount !== undefined ? wordCount : c.wordCount,
+              updatedAt: Date.now() 
+            } : c
           ),
         }));
       },
 
       deleteChapter: (id) => {
+        deleteChapterContent(id);
         set(state => ({ chapters: state.chapters.filter(c => c.id !== id) }));
+      },
+
+      loadChapterContent: (chapterId): string => {
+        return loadChapterContent(chapterId);
       },
 
       addCharacter: (projectId, name, role) => {

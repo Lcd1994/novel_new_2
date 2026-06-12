@@ -187,7 +187,7 @@ export default function Studio() {
                 <ChevronRight className="w-4 h-4 text-ink-400" />
               </div>
               <p className="text-ink-300 text-sm line-clamp-2">
-                {chapter.content || '空白章节'}
+                {chapter.preview || '空白章节'}
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <span className={`text-xs px-2 py-0.5 rounded ${
@@ -198,6 +198,9 @@ export default function Studio() {
                   {chapter.status === 'completed' ? '已完成' :
                    chapter.status === 'ai_generated' ? 'AI已生成' :
                    chapter.status === 'revised' ? '已修订' : '草稿'}
+                </span>
+                <span className="text-xs text-ink-400">
+                  {chapter.wordCount > 0 ? `${chapter.wordCount}字` : ''}
                 </span>
               </div>
             </div>

@@ -1,16 +1,18 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, BookOpen, Loader2 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { useProjectStore } from '@/stores/projectStore';
 
 export default function Reader() {
   const { projectId, chapterId } = useParams<{ projectId: string; chapterId: string }>();
   const navigate = useNavigate();
-  const { chapters, projects } = useProjectStore();
+  const { chapters, projects, loadChapterContent } = useProjectStore();
 
   const [fontSize, setFontSize] = useState(18);
   const [theme, setTheme] = useState<'dark' | 'sepia'>('dark');
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const project = projects.find(p => p.id === projectId);
   const projectChapters = chapters.filter(c => c.projectId === projectId).sort((a, b) => a.number - b.number);
@@ -19,6 +21,15 @@ export default function Reader() {
 
   const prevChapter = currentIndex > 0 ? projectChapters[currentIndex - 1] : null;
   const nextChapter = currentIndex < projectChapters.length - 1 ? projectChapters[currentIndex + 1] : null;
+
+  useEffect(() => {
+    if (chapterId) {
+      setLoading(true);
+      const chapterContent = loadChapterContent(chapterId);
+      setContent(chapterContent);
+      setLoading(false);
+    }
+  }, [chapterId, loadChapterContent]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -88,12 +99,18 @@ export default function Reader() {
               {currentChapter.title}
             </h1>
 
-            <div
-              className="leading-loose whitespace-pre-wrap"
-              style={{ fontSize: `${fontSize}px`, lineHeight: '1.8' }}
-            >
-              {currentChapter.content || '暂无内容'}
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className={`w-6 h-6 animate-spin ${theme === 'dark' ? 'text-amber-gold' : 'text-amber-600'}`} />
+              </div>
+            ) : (
+              <div
+                className="leading-loose whitespace-pre-wrap"
+                style={{ fontSize: `${fontSize}px`, lineHeight: '1.8' }}
+              >
+                {content || '暂无内容'}
+              </div>
+            )}
 
             <div className="mt-16 pt-8 border-t border-ink-500/30 flex items-center justify-between">
               {prevChapter ? (

@@ -53,6 +53,8 @@ export interface Chapter {
   number: number;
   title: string;
   content: string;
+  preview: string;
+  wordCount: number;
   status: 'draft' | 'ai_generated' | 'revised' | 'completed';
   createdAt: number;
   updatedAt: number;
