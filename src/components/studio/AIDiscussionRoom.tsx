@@ -152,7 +152,7 @@ export default function AIDiscussionRoom() {
             <p className="text-ink-300 text-sm mt-1">与AI讨论你的故事创意</p>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 relative">
             <button
               onClick={() => setShowProviderDropdown(!showProviderDropdown)}
               className="flex items-center gap-1 px-3 py-1.5 bg-ink-600/50 rounded-lg text-sm hover:bg-ink-600 transition-colors"
@@ -169,13 +169,12 @@ export default function AIDiscussionRoom() {
             >
               <Trash2 className="w-4 h-4" />
             </button>
-          </div>
-          
-          {showProviderDropdown && (
-            <div className="absolute right-0 top-full mt-1 bg-ink-700 border border-ink-500/50 rounded-lg shadow-xl z-10 min-w-[160px]">
-              {providers.map(provider => (
-                <button
-                  key={provider.id}
+
+            {showProviderDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-ink-700 border border-ink-500/50 rounded-lg shadow-xl z-10 min-w-[160px]">
+                {providers.map(provider => (
+                  <button
+                    key={provider.id}
                     onClick={() => handleProviderChange(provider.id)}
                     className={`w-full px-4 py-2 text-left text-sm hover:bg-ink-600 flex justify-between items-center ${
                       config.provider === provider.id ? 'text-amber-gold bg-ink-600/50' : 'text-ink-200'
