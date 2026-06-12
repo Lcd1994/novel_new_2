@@ -24,7 +24,8 @@ export default function Settings() {
   const providers = [
     { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' },
     { id: 'gemini', name: 'Gemini', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-pro' },
-    { id: 'xiaomi', name: '小米MIMO', baseUrl: 'https://api.mimo.mi.com', model: 'mimo-7b' },
+    { id: 'xiaomi-mimo', name: '小米MIMO (API Key)', baseUrl: 'https://api.mimo.mi.com/v1', model: 'mimo-8b-chat' },
+    { id: 'xiaomi-token', name: '小米Token Plan', baseUrl: 'https://api.mimo.mi.com/v1', model: 'mimo-8b-chat' },
     { id: 'deepseek-r1', name: 'DeepSeek R1', baseUrl: 'https://api.deepseek.com', model: 'deepseek-r1' },
     ...customProviders.map(p => ({ ...p, id: `custom-${p.id}` })),
   ];
